@@ -342,7 +342,11 @@ class NavigateEnv(BaseEnv):
         hit_fraction = np.array([item[2] for item in results])  # hit fraction = [0.0, 1.0] of self.laser_linear_range
         hit_fraction = self.add_naive_noise_to_sensor(hit_fraction, self.scan_noise_rate)
         scan = np.expand_dims(hit_fraction, 1)
-        return scan
+
+        xyz = hit_fraction[:, np.newaxis] * unit_vector_local * 10
+        xyz = xyz[np.equal(np.isnan(xyz), False)]
+        xyz = xyz.reshape(xyz.shape[0] // 3, -1)
+        return xyz#scan
 
     def get_state(self, collision_links=[]):
         """

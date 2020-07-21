@@ -8,6 +8,7 @@ from transforms3d.euler import euler2quat, euler2mat
 from transforms3d.quaternions import quat2mat, qmult
 import transforms3d.quaternions as quat
 import sys
+import rospkg
 from gibson2.external.pybullet_tools.utils import set_base_values, joint_from_name, set_joint_position, \
     set_joint_positions, add_data_path, connect, plan_base_motion, plan_joint_motion, enable_gravity, \
     joint_controller, dump_body, load_model, joints_from_names, user_input, disconnect, get_joint_positions, \
@@ -199,6 +200,46 @@ class LocomotorRobot(BaseRobot):
         state = np.concatenate([pos, rpy, lin_vel, ang_vel, j])
         return state
 
+class Mushr(LocomotorRobot):
+    def __init__(self, config):
+        self.config = config
+        self.velocity = config.get("velocity", 1.0)
+        rospack = rospkg.RosPack()
+        path = rospack.get_path('mushr_description')
+        car_name = self.config['racecar_version'] + \
+                        ("" if not self.config['racecar_color'] else self.config['racecar_color']) + \
+                        '.urdf'
+        robot_model = os.path.join(path, 'robots', car_name)
+        LocomotorRobot.__init__(self,
+                                robot_model,
+                                action_dim=2,
+                                scale=config.get("robot_scale", 1.0),
+                                is_discrete=config.get("is_discrete", False),
+                                control="velocity")
+
+    def set_up_continuous_action_space(self):
+        self.action_space = gym.spaces.Box(shape=(self.action_dim,),
+                                           low=-1.0,
+                                           high=1.0,
+                                           dtype=np.float32)
+        self.action_high = np.full(shape=self.action_dim, fill_value=self.velocity)
+        self.action_low = -self.action_high
+
+    def set_up_discrete_action_space(self):
+        self.action_list = [[self.velocity, self.velocity], [-self.velocity, -self.velocity],
+                            [self.velocity * 0.5, -self.velocity * 0.5],
+                            [-self.velocity * 0.5, self.velocity * 0.5], [0, 0]]
+        self.action_space = gym.spaces.Discrete(len(self.action_list))
+        self.setup_keys_to_action()
+
+    def setup_keys_to_action(self):
+        self.keys_to_action = {
+            (ord('w'),): 0,  # forward
+            (ord('s'),): 1,  # backward
+            (ord('d'),): 2,  # turn right
+            (ord('a'),): 3,  # turn left
+            (): 4  # stay still
+        }
 
 class Ant(LocomotorRobot):
     def __init__(self, config):
